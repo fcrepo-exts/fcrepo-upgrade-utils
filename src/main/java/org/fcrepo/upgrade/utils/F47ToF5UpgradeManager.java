@@ -146,6 +146,9 @@ class F47ToF5UpgradeManager extends UpgradeManagerBase implements UpgradeManager
             FileUtils.copyFile(path.toFile(), newLocation.toFile());
             if (newLocation.toString().endsWith(config.getSrcRdfExt())) {
                 upgradeRdfAndCreateHeaders(versionTimestamp, newLocation);
+                LOGGER.debug("File upgraded: {}", newLocation);
+            } else {
+                LOGGER.debug("File copied: {}", newLocation);
             }
             LOGGER.info("Resource upgraded: {}", path);
 
