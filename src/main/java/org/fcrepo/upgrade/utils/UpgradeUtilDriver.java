@@ -245,7 +245,10 @@ public class UpgradeUtilDriver {
         configOptions.addOption(Option.builder("r")
                 .longOpt("source-rdf")
                 .hasArg(true)
-                .desc("The RDF language used in the Fedora export. Default: " + Config.DEFAULT_SRC_RDF_LANG.getName())
+                .desc("The RDF language used in the Fedora export, expressed as a content type." +
+                        System.lineSeparator() + "Acceptable values are: application/ld+json, application/n-triples," +
+                        " application/rdf+xml, text/n3, text/rdf+n3, text/turtle." + System.lineSeparator() +
+                        "Default: " + Config.DEFAULT_SRC_RDF_LANG.getContentType().getContentType())
                 .required(false)
                 .build());
 
@@ -352,7 +355,7 @@ public class UpgradeUtilDriver {
         configOptions.addOption(Option.builder("R")
                 .longOpt("resource-info-file")
                 .hasArg(true)
-                .desc("The path the file that contains a list of resources to be processed")
+                .desc("The path of the file that contains a list of resources to be processed")
                 .required(false)
                 .build());
 
@@ -360,7 +363,7 @@ public class UpgradeUtilDriver {
     }
 
     private Object join(final Collection<FedoraVersion> versions) {
-        return versions.stream().map(FedoraVersion::getStringValue).collect(Collectors.joining(","));
+        return versions.stream().map(FedoraVersion::getStringValue).sorted().collect(Collectors.joining(", "));
     }
 
     private static void printHelpAndExit(final String errorMessage, final Options options) {
