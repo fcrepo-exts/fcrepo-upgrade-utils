@@ -35,15 +35,18 @@ usage: java -jar fcrepo-upgrade-util-<version>.jar
                                      Default: the number of available
                                      cores
  -r,--source-rdf <arg>               The RDF language used in the Fedora
-                                     export. Default: Turtle
+                                     export, expressed as a content type.
+                                     Acceptable values are:
+                                     application/ld+json,
+                                     application/n-triples,
+                                     application/rdf+xml, text/n3,
+                                     text/rdf+n3, text/turtle.
+                                     Default: text/turtle
  -R,--resource-info-file <arg>       The path of the file that contains a
                                      list of resources to be processed
-    --skip-acls                      Skip creating fcr:acl resources
-                                     and migrate webac:Acl and
-                                     acl:Authorization resources normally
  -s,--source-version <arg>           The version of Fedora that was the
                                      source of the export. Valid values:
-                                     5+,4.7.5
+                                     4.7.5, 5+
     --s3-access-key <arg>            The AWS access key, optionally use
                                      when writing to S3
     --s3-bucket <arg>                The S3 bucket to write to, required
@@ -58,8 +61,11 @@ usage: java -jar fcrepo-upgrade-util-<version>.jar
                                      writing to S3
     --s3-secret-key <arg>            The AWS secret key, optionally use
                                      when writing to S3
+    --skip-acls                      Skip creating fcr:acl resources and
+                                     migrate webac:Acl and
+                                     acl:Authorization resources normally
  -t,--target-version <arg>           The version of Fedora to which you
-                                     are upgrading. Valid values: 5+,6+
+                                     are upgrading. Valid values: 5+, 6+
  -u,--base-uri <arg>                 Fedora's base URI. For example,
                                      http://localhost:8080/rest
     --write-to-s3                    Enables writing migrated Fedora 6
