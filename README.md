@@ -66,7 +66,8 @@ usage: java -jar fcrepo-upgrade-util-<version>.jar
                                      acl:Authorization resources normally
  -t,--target-version <arg>           The version of Fedora to which you
                                      are upgrading. Valid values: 5+, 6+
- -u,--base-uri <arg>                 Fedora's base URI. For example,
+ -u,--base-uri <arg>                 Base URI of the source Fedora being
+                                     upgraded. For example,
                                      http://localhost:8080/rest
     --write-to-s3                    Enables writing migrated Fedora 6
                                      data to S3 rather than the local

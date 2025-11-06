@@ -255,7 +255,7 @@ public class UpgradeUtilDriver {
         configOptions.addOption(Option.builder("u")
                 .longOpt("base-uri")
                 .hasArg(true)
-                .desc("Fedora's base URI. For example, http://localhost:8080/rest")
+                .desc("Base URI of the source Fedora being upgraded. For example, http://localhost:8080/rest")
                 .required(false)
                 .build());
 
