@@ -294,6 +294,15 @@ public class UpgradeUtilDriver {
                 .required(false)
                 .build());
 
+        configOptions.addOption(Option.builder("ag")
+                .longOpt("archival-group-rdf-types")
+                .hasArg(true)
+                .desc("Comma separated list of RDF type URIs. If a resource has any of the types" +
+                        " in the provided list, it will be created as an archival group in OCFL.")
+                .required(false)
+                .build());
+        // archivalGroupRdfTypes
+
         // S3 options
 
         configOptions.addOption(Option.builder()

@@ -7,8 +7,14 @@
 package org.fcrepo.upgrade.utils.f6;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.jena.sparql.pfunction.library.version;
+import org.apache.jena.vocabulary.RDF;
+import org.fcrepo.client.FedoraTypes;
 import org.fcrepo.storage.ocfl.OcflObjectSession;
 import org.fcrepo.storage.ocfl.OcflObjectSessionFactory;
+import org.fcrepo.storage.ocfl.ResourceContent;
+import org.fcrepo.storage.ocfl.ResourceHeaders;
 import org.fcrepo.upgrade.utils.Config;
 import org.fcrepo.upgrade.utils.UpgradeManagerFactory;
 import org.junit.Before;
@@ -22,8 +28,10 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 
@@ -46,6 +54,7 @@ public class ResourceMigratorTest {
 
     private ResourceMigrator migrator;
     private Config config;
+    private Config expectedConfig;
     private OcflObjectSessionFactory migrationOcflFactory;
     private OcflObjectSessionFactory expectedOcflFactory;
 
@@ -70,10 +79,11 @@ public class ResourceMigratorTest {
 
         migrator = new ResourceMigrator(config, migrationOcflFactory);
 
-        final var expectedConfig = new Config();
+        expectedConfig = new Config();
         expectedConfig.setOutputDir(new File("src/test/resources/5.1-to-6-expected"));
         expectedOcflFactory = UpgradeManagerFactory.createOcflObjectSessionFactory(expectedConfig);
     }
+
 
     @Test
     public void migrateBinary() {
@@ -248,6 +258,76 @@ public class ResourceMigratorTest {
         }
     }
 
+    @Test
+    public void migrateBasicContainerAGWithNoChildren() throws Exception {
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+        final var info = containerInfo("simple-container");
+
+        migrateNoChildren(info);
+
+        final var expectedHeaders = expectedBuilder(info.getFullId())
+                .withArchivalGroup(true)
+                .build();
+
+        assertHeadSame(info.getFullId(), expectedHeaders);
+    }
+
+    @Test
+    public void migrateBasicContainerAGWithChildren() throws Exception {
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+        final var info = containerInfo("container-with-children");
+
+        final var children = migrate(info);
+        children.forEach(this::migrateNoChildren);
+
+        final var expectedHeaders = expectedBuilder(info.getFullId())
+                .withArchivalGroup(true)
+                .withObjectRoot(true)
+                // Memento date of AG matches last modified date of its children
+                .withMementoCreatedDate(Instant.parse("2020-09-11T18:15:28.076Z"))
+                .build();
+        assertHeadSame(info.getFullId(), expectedHeaders);
+
+        assertEquals(2, children.size());
+
+        final var binaryChild = children.get(0);
+        final var expectedBinaryHeaders = expectedBuilder(binaryChild.getFullId())
+                .withArchivalGroupId(info.getFullId())
+                .withObjectRoot(false)
+                .withArchivalGroup(false)
+                .build();
+        final var expectedBinaryContent = expectedContent(binaryChild.getFullId());
+
+        assertChildInfo(info, "binary-child", ResourceInfo.Type.BINARY, binaryChild);
+        assertHeadSame(binaryChild.getFullId(), expectedBinaryHeaders, expectedBinaryContent.getContentStream().get());
+
+        final var containerChild = children.get(1);
+        final var expectedContainerHeaders = expectedBuilder(containerChild.getFullId())
+                .withArchivalGroupId(info.getFullId())
+                .withObjectRoot(false)
+                .withArchivalGroup(false)
+                .withContentPath("container-child/fcr-container.nt")
+                .build();
+        assertChildInfo(info, "container-child", ResourceInfo.Type.CONTAINER, containerChild);
+        final var expectedContent = Files.newInputStream(Paths.get(
+                "src/test/resources/5.1-to-6-expected/data/ocfl-root/56d/ed5/34e/" +
+                     "56ded534e5e1683bbffd6724f71ae467eac4689294da024e7e9cfde511944303/v1/content/fcr-container.nt"));
+        assertHeadSame(containerChild.getFullId(), expectedContainerHeaders, expectedContent);
+    }
+
+    private ResourceHeaders.Builder expectedBuilder(final String id) {
+        final var expectedSession = expectedOcflFactory.newSession(id);
+        final var expectedHeaders = expectedSession.readHeaders(id);
+        return ResourceHeaders.builder(expectedHeaders);
+    }
+
+    private ResourceContent expectedContent(final String id) {
+        final var expectedSession = expectedOcflFactory.newSession(id);
+        return expectedSession.readContent(id);
+    }
+
     private List<ResourceInfo> migrate(final ResourceInfo info) {
         final var children = migrator.migrate(info);
         children.sort(Comparator.comparing(ResourceInfo::getFullId));
@@ -303,6 +383,33 @@ public class ResourceMigratorTest {
         });
     }
 
+    private void assertHeadSame(final String id,
+                                final ResourceHeaders expectedHeaders) {
+        assertHeadSame(id, expectedHeaders, InputStream.nullInputStream());
+    }
+
+    private void assertHeadSame(final String id,
+                                final ResourceHeaders expectedHeaders,
+                                final InputStream expectedContent) {
+        final String idForSession = expectedHeaders.getArchivalGroupId() == null ? id :
+                expectedHeaders.getArchivalGroupId();
+        final var actualSession = migrationOcflFactory.newSession(idForSession);
+        assertTrue(id + " should exist", actualSession.containsResource(id));
+
+        final var versions = actualSession.listVersions(id);
+        final var headVersion = versions.get(versions.size() - 1).getVersionNumber();
+        final var actualHeaders = actualSession.readHeaders(id, headVersion);
+        assertEquals(expectedHeaders, actualHeaders);
+
+        final var actualContent = actualSession.readContent(id, headVersion);
+        if (expectedContent == null) {
+            assertTrue(id + " content should be null", actualContent.getContentStream().isEmpty());
+        } else {
+            assertEquals(id + " content mismatch",
+                    hash(expectedContent), hash(actualContent.getContentStream().get()));
+        }
+    }
+
     private void assertChildInfo(final ResourceInfo parent,
                                  final String name,
                                  final ResourceInfo.Type type,
@@ -329,15 +436,15 @@ public class ResourceMigratorTest {
     }
 
     private ResourceInfo binaryInfo(final String name) {
-        return ResourceInfo.binary(ROOT, join(ROOT, name), rootInner, encode(name));
+        return ResourceInfo.binary(ROOT, join(ROOT, name), null, rootInner, encode(name));
     }
 
     private ResourceInfo externalBinaryInfo(final String name) {
-        return ResourceInfo.externalBinary(ROOT, join(ROOT, name), rootInner, encode(name));
+        return ResourceInfo.externalBinary(ROOT, join(ROOT, name), null, rootInner, encode(name));
     }
 
     private ResourceInfo containerInfo(final String name) {
-        return ResourceInfo.container(ROOT, join(ROOT, name), rootInner, encode(name));
+        return ResourceInfo.container(ROOT, join(ROOT, name), null, rootInner, encode(name));
     }
 
     private String encode(final String value) {

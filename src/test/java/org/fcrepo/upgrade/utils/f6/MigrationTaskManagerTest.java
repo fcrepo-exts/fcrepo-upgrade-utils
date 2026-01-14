@@ -53,7 +53,7 @@ public class MigrationTaskManagerTest {
     public void setup() throws IOException {
         manager = new MigrationTaskManager(1, resourceMigrator, new ResourceInfoLogger());
         final var parent = randomId();
-        defaultInfo = ResourceInfo.container(parent, join(parent, "child"), Paths.get("/"), "child");
+        defaultInfo = ResourceInfo.container(parent, join(parent, "child"), null, Paths.get("/"), "child");
         logPath = Paths.get("target/remaining.log");
         if (Files.exists(logPath)) {
             Files.write(logPath, new byte[0], StandardOpenOption.TRUNCATE_EXISTING);
@@ -105,9 +105,9 @@ public class MigrationTaskManagerTest {
         }).when(resourceMigrator).migrate(Mockito.any());
 
         final var info2 = ResourceInfo.container(defaultInfo.getFullId(),
-                join(defaultInfo.getFullId(), "child"), Paths.get("/"), "child");
+                join(defaultInfo.getFullId(), "child"), null, Paths.get("/"), "child");
         final var info3 = ResourceInfo.container(info2.getFullId(),
-                join(info2.getFullId(), "child"), Paths.get("/"), "child");
+                join(info2.getFullId(), "child"), null, Paths.get("/"), "child");
 
         manager.submit(defaultInfo);
         manager.submit(info2);

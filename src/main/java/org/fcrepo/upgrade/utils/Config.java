@@ -42,6 +42,7 @@ public class Config {
     private boolean forceWindowsMode = false;
     private Path resourceInfoFile;
     private boolean skipAcls = false;
+    private String archivalGroupRdfTypes;
 
     // S3 Options
     private boolean writeToS3;
@@ -268,6 +269,20 @@ public class Config {
      */
     public void setSkipAcls(final boolean skipAcls) {
         this.skipAcls = skipAcls;
+    }
+
+    /**
+     * @return RDF types that identify Archival Groups, comma separated
+     */
+    public String getArchivalGroupRdfTypes() {
+        return archivalGroupRdfTypes;
+    }
+
+    /**
+     * @param archivalGroupRdfTypes RDF types that identify Archival Groups, comma separated
+     */
+    public void setArchivalGroupRdfTypes(String archivalGroupRdfTypes) {
+        this.archivalGroupRdfTypes = archivalGroupRdfTypes;
     }
 
     /**

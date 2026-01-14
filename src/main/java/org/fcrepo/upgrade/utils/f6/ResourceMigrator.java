@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -78,6 +79,7 @@ public class ResourceMigrator {
     private final String srcRdfExt;
     private final Lang dstRdfLang;
     private final String baseUri;
+    private final Set<String> archivalGroupRdfTypes;
 
     /**
      * @param config the migration configuration
@@ -91,6 +93,8 @@ public class ResourceMigrator {
         this.baseUri = stripTrailingSlash(config.getBaseUri());
         this.srcRdfLang = config.getSrcRdfLang();
         this.srcRdfExt = "." + config.getSrcRdfExt();
+
+        archivalGroupRdfTypes = parseArchivalGroupRdfTypes(config.getArchivalGroupRdfTypes());
 
         // Currently, this is all F6 supports
         this.dstRdfLang = Lang.NT;
@@ -126,7 +130,9 @@ public class ResourceMigrator {
             }
 
             if (info.getType() == ResourceInfo.Type.CONTAINER) {
-                return listAllChildren(info.getFullId(), info.getFullId(), info.getInnerDirectory());
+                final var archivalGroupId = info.getArchivalGroupId() != null
+                        ? info.getArchivalGroupId() : null;
+                return listAllChildren(info.getFullId(), info.getFullId(), archivalGroupId, info.getInnerDirectory());
             } else {
                 return Collections.emptyList();
             }
@@ -176,21 +182,31 @@ public class ResourceMigrator {
                                          final Model rdf,
                                          final Instant timestamp) {
         final var interactionModel = identifyInteractionModel(info.getFullId(), rdf);
+        final boolean isArchivalGroup = checkForArchivalGroup(info, rdf);
 
-        final var headers = createContainerHeaders(info, interactionModel, rdf);
+        final var headers = createContainerHeaders(info, interactionModel, rdf, isArchivalGroup);
 
-        doInSession(info.getFullId(), session -> {
+        // Set this after creating headers since we don't record the id on the archival group itself
+        if (isArchivalGroup) {
+            info.setArchivalGroupId(info.getFullId());
+        }
+
+        doInSession(getIdForSession(headers, info.getFullId()), session -> {
             final var isFirst = !session.containsResource(info.getFullId());
 
             session.versionCreationTimestamp(timestamp.atOffset(ZoneOffset.UTC));
             session.writeResource(headers, writeRdf(rdf));
 
             if (isFirst && hasAcl(containerDir)) {
-                migrateAcl(info.getFullId(), containerDir, session);
+                migrateAcl(info.getFullId(), headers.getArchivalGroupId(), containerDir, session);
             }
 
             session.commit();
         });
+    }
+
+    private String getIdForSession(ResourceHeaders headers, String fullId) {
+        return headers.getArchivalGroupId() == null ? fullId : headers.getArchivalGroupId();
     }
 
     private void migrateBinary(final ResourceInfo info) {
@@ -231,7 +247,7 @@ public class ResourceMigrator {
         final var headers = createBinaryHeaders(info, rdf);
 
         final var descId = joinId(info.getFullId(), FCR_METADATA_ID);
-        final var descHeaders = createBinaryDescHeaders(info.getFullId(), descId, rdf);
+        final var descHeaders = createBinaryDescHeaders(info.getFullId(), descId, headers.getArchivalGroupId(), rdf);
 
         try (final var stream = new BufferedInputStream(Files.newInputStream(binaryFile))) {
             writeBinary(info.getFullId(), binaryDir, headers, stream, descHeaders, rdf, timestamp);
@@ -250,18 +266,19 @@ public class ResourceMigrator {
         final var headers = headersBuilder.build();
 
         final var descId = joinId(info.getFullId(), FCR_METADATA_ID);
-        final var descHeaders = createBinaryDescHeaders(info.getFullId(), descId, rdf);
+        final var descHeaders = createBinaryDescHeaders(info.getFullId(), descId, headers.getArchivalGroupId(), rdf);
 
         writeBinary(info.getFullId(), info.getInnerDirectory(), headers,
                 null, descHeaders, rdf, headers.getLastModifiedDate());
     }
 
-    private void migrateAcl(final String parentId, final Path directory, final OcflObjectSession session) {
+    private void migrateAcl(final String parentId, final String archivalGroupId,
+                            final Path directory, final OcflObjectSession session) {
         final var fullId = joinId(parentId, FCR_ACL_ID);
         LOGGER.info("Migrating {}", fullId);
 
         final var rdf = readRdf(directory.resolve(rdfFile(FCR_ACL)));
-        final var headers = createAclHeaders(parentId, fullId, rdf);
+        final var headers = createAclHeaders(parentId, fullId, archivalGroupId, rdf);
 
         session.writeResource(headers, writeRdf(rdf));
     }
@@ -273,15 +290,16 @@ public class ResourceMigrator {
                              final ResourceHeaders descHeaders,
                              final Model rdf,
                              final Instant timestamp) {
-        doInSession(fullId, session -> {
+        doInSession(getIdForSession(contentHeaders, fullId), session -> {
             final var isFirst = !session.containsResource(fullId);
+            final String archivalGroupId = contentHeaders.getArchivalGroupId();
 
             session.versionCreationTimestamp(timestamp.atOffset(ZoneOffset.UTC));
             session.writeResource(contentHeaders, content);
             session.writeResource(descHeaders, writeRdf(rdf, true));
 
             if (isFirst && hasAcl(binaryDir)) {
-                migrateAcl(fullId, binaryDir, session);
+                migrateAcl(fullId, archivalGroupId, binaryDir, session);
             }
 
             session.commit();
@@ -313,20 +331,22 @@ public class ResourceMigrator {
      *
      * @param rootParentId the internal Fedora id of the container resource that was just processed
      * @param currentParentId a child of rootParentId used when expanding ghost nodes
+     * @param archivalGroupId the archival group id, if any
      * @param containerDir the container's export directory
      * @return the container's direct children
      */
     private List<ResourceInfo> listAllChildren(final String rootParentId,
                                                final String currentParentId,
+                                               final String archivalGroupId,
                                                final Path containerDir) {
-        final var childMap = listDirectChildren(rootParentId, currentParentId, containerDir);
+        final var childMap = listDirectChildren(rootParentId, currentParentId, archivalGroupId, containerDir);
         final var children = new ArrayList<>(childMap.values());
         final var ghosts = listGhostNodes(containerDir, childMap.keySet());
 
         return ghosts.stream()
                 .map(ghost -> {
                     final var name = decode(ghost.getFileName().toString());
-                    return listAllChildren(rootParentId, joinId(currentParentId, name), ghost);
+                    return listAllChildren(rootParentId, joinId(currentParentId, name), archivalGroupId, ghost);
                 })
                 .reduce(children, (l, r) -> {
                     l.addAll(r);
@@ -339,11 +359,13 @@ public class ResourceMigrator {
      *
      * @param rootParentId the internal Fedora id of the container resource that was just processed
      * @param currentParentId a child of rootParentId used when expanding ghost nodes
+     * @param archivalGroupId the archival group id, if any
      * @param containerDir the container's export directory
      * @return the container's children not under ghost nodes
      */
     private Map<String, ResourceInfo> listDirectChildren(final String rootParentId,
                                                          final String currentParentId,
+                                                         final String archivalGroupId,
                                                          final Path containerDir) {
         if (!containerDir.toFile().exists()) {
             return Collections.emptyMap();
@@ -360,11 +382,13 @@ public class ResourceMigrator {
                         final var fullId = joinId(currentParentId, decoded);
 
                         if (isBinary(filename)) {
-                            return ResourceInfo.binary(rootParentId, fullId, containerDir, stripped);
+                            return ResourceInfo.binary(rootParentId, fullId, archivalGroupId, containerDir, stripped);
                         } else if (isExternal(filename)) {
-                            return ResourceInfo.externalBinary(rootParentId, fullId, containerDir, stripped);
+                            return ResourceInfo.externalBinary(rootParentId, fullId, archivalGroupId, containerDir,
+                                    stripped);
                         } else if (isContainer(filename)) {
-                            return ResourceInfo.container(rootParentId, fullId, containerDir, stripped);
+                            return ResourceInfo.container(rootParentId, fullId, archivalGroupId, containerDir,
+                                    stripped);
                         }
 
                         return null;
@@ -434,6 +458,21 @@ public class ResourceMigrator {
         throw new IllegalStateException("Failed to identify interaction model for resource " + fullId);
     }
 
+    private boolean checkForArchivalGroup(final ResourceInfo info, final Model rdf) {
+        // False if no AG types configured, or if the resource is already in an AG
+        if (archivalGroupRdfTypes == null || archivalGroupRdfTypes.isEmpty() || info.getArchivalGroupId() != null) {
+            return false;
+        }
+
+        for (final var it = RdfUtil.listStatements(RDF.type, rdf); it.hasNext();) {
+            final var statement = it.nextStatement();
+            if (archivalGroupRdfTypes.contains(statement.getObject().toString())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void doInSession(final String fullId, final Consumer<OcflObjectSession> runnable) {
         final var session = objectSessionFactory.newSession(fullId);
         try {
@@ -446,6 +485,7 @@ public class ResourceMigrator {
 
     private ResourceHeaders.Builder createCommonHeaders(final String parentId,
                                                 final String fullId,
+                                                final String archivalGroupId,
                                                 final InteractionModel interactionModel,
                                                 final Model rdf) {
         final var headers = ResourceHeaders.builder();
@@ -466,6 +506,7 @@ public class ResourceMigrator {
                 .withParent(parentId)
                 .withInteractionModel(interactionModel.getUri())
                 .withArchivalGroup(false)
+                .withArchivalGroupId(archivalGroupId)
                 .withDeleted(false)
                 .withCreatedBy(RdfUtil.getFirstValue(RdfConstants.FEDORA_CREATED_BY, rdf))
                 .withCreatedDate(created)
@@ -493,30 +534,35 @@ public class ResourceMigrator {
 
     private ResourceHeaders createContainerHeaders(final ResourceInfo info,
                                                    final InteractionModel interactionModel,
-                                                   final Model rdf) {
-        final var headers = createCommonHeaders(info.getParentId(), info.getFullId(),
+                                                   final Model rdf,
+                                                   final boolean isArchivalGroup) {
+        final var headers = createCommonHeaders(info.getParentId(), info.getFullId(), info.getArchivalGroupId(),
                 interactionModel, rdf);
-        headers.withObjectRoot(true);
+        headers.withArchivalGroup(isArchivalGroup);
+        headers.withObjectRoot(info.getArchivalGroupId() == null);
         return headers.build();
     }
 
-    private ResourceHeaders createBinaryDescHeaders(final String parentId, final String fullId, final Model rdf) {
-        final var headers = createCommonHeaders(parentId, fullId, InteractionModel.NON_RDF_DESCRIPTION, rdf);
+    private ResourceHeaders createBinaryDescHeaders(final String parentId, final String fullId,
+                                                    final String archivalGroupId, final Model rdf) {
+        final var headers = createCommonHeaders(parentId, fullId, archivalGroupId,
+                InteractionModel.NON_RDF_DESCRIPTION, rdf);
         headers.withObjectRoot(false);
         return headers.build();
     }
 
-    private ResourceHeaders createAclHeaders(final String parentId, final String fullId, final Model rdf) {
-        final var headers = createCommonHeaders(parentId, fullId, InteractionModel.ACL, rdf);
+    private ResourceHeaders createAclHeaders(final String parentId, final String fullId,
+                                             final String archivalGroupId, final Model rdf) {
+        final var headers = createCommonHeaders(parentId, fullId, archivalGroupId, InteractionModel.ACL, rdf);
         headers.withObjectRoot(false);
         return headers.build();
     }
 
     private ResourceHeaders createBinaryHeaders(final ResourceInfo info, final Model rdf) {
-        final var headers = createCommonHeaders(info.getParentId(), info.getFullId(),
+        final var headers = createCommonHeaders(info.getParentId(), info.getFullId(), info.getArchivalGroupId(),
                 InteractionModel.NON_RDF, rdf);
-        headers.withObjectRoot(true)
-                .withContentSize(Long.valueOf(RdfUtil.getFirstValue(RdfConstants.HAS_SIZE, rdf)))
+        headers.withObjectRoot(info.getArchivalGroupId() == null)
+                .withContentSize(Long.parseLong(RdfUtil.getFirstValue(RdfConstants.HAS_SIZE, rdf)))
                 .withDigests(RdfUtil.getUris(RdfConstants.HAS_MESSAGE_DIGEST, rdf))
                 .withFilename(RdfUtil.getFirstValue(RdfConstants.HAS_ORIGINAL_NAME, rdf))
                 .withMimeType(RdfUtil.getFirstValue(RdfConstants.EBUCORE_HAS_MIME_TYPE, rdf));
@@ -610,4 +656,13 @@ public class ResourceMigrator {
         return value;
     }
 
+    private static Set<String> parseArchivalGroupRdfTypes(final String typesString) {
+        if (typesString == null || typesString.isEmpty()) {
+            return null;
+        }
+        return Arrays.stream(typesString.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+    }
 }

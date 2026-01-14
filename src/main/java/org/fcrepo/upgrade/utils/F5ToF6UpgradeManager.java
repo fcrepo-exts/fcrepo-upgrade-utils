@@ -51,7 +51,7 @@ class F5ToF6UpgradeManager implements UpgradeManager {
 
         if (config.getResourceInfoFile() == null) {
             LOGGER.info("Starting migration from repository root");
-            final var repoRoot = ResourceInfo.container(ROOT, ROOT, locateRestRoot(), REST);
+            final var repoRoot = ResourceInfo.container(ROOT, ROOT, null, locateRestRoot(), REST);
             migrationTaskManager.submit(repoRoot);
         } else {
             LOGGER.info("Starting migration from resources file {}", config.getResourceInfoFile());
