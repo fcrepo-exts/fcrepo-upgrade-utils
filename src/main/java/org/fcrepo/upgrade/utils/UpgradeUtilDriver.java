@@ -156,6 +156,7 @@ public class UpgradeUtilDriver {
         if (config.getTargetVersion().equals(FedoraVersion.V_6)) {
             //base URI only used when migrating to F6
             config.setBaseUri(cmd.getOptionValue("base-uri"));
+            config.setArchivalGroupRdfTypes(cmd.getOptionValue("archival-group-rdf-types"));
         }
         if (cmd.hasOption("digest-algorithm")) {
             final var algo = cmd.getOptionValue("digest-algorithm");
