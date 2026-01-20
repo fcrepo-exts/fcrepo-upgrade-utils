@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -119,6 +120,43 @@ public class MigrationTaskManagerTest {
 
         assertLogContains(info2, info3);
     }
+
+    @Test
+    public void processArchivalGroupChildrenImmediately() throws InterruptedException {
+        final var agId = "ag-" + UUID.randomUUID();
+        final var threadIds = new ArrayList<Long>();
+        final var parentId = randomId();
+        final var parentInfo = ResourceInfo.container(INFO_FEDORA, parentId, null, Paths.get("/"), "parent");
+
+        // Child with archival group ID
+        final var childId = join(parentId, "child");
+        final var childInfo = ResourceInfo.container(parentId, childId, agId, Paths.get("/"), "child");
+
+        // Grandchild also in same archival group
+        final var grandchildId = join(childId, "grandchild");
+        final var grandchildInfo = ResourceInfo.container(childId, grandchildId, agId, Paths.get("/"), "grandchild");
+
+        doAnswer(invocation -> {
+            final ResourceInfo info = invocation.getArgument(0);
+            threadIds.add(Thread.currentThread().getId());
+
+            if (info.equals(parentInfo)) {
+                return List.of(childInfo);
+            } else if (info.equals(childInfo)) {
+                return List.of(grandchildInfo);
+            }
+            return new ArrayList<ResourceInfo>();
+        }).when(resourceMigrator).migrate(Mockito.any());
+
+        manager.submit(parentInfo);
+        manager.awaitCompletion();
+
+        // All three resources should have been processed in the same thread
+        assertEquals(3, threadIds.size());
+        assertEquals(threadIds.get(0), threadIds.get(1));
+        assertEquals(threadIds.get(1), threadIds.get(2));
+    }
+
 
     private void submitAndComplete(final ResourceInfo info) throws InterruptedException {
         manager.submit(info);
