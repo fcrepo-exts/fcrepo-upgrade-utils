@@ -91,7 +91,7 @@ public class MigrationTaskManager {
         new TaskWrapper(info,
                 new MigrateResourceTask(this, resourceMigrator, infoLogger, info))
                 .call();
-        
+
         count.incrementAndGet();
     }
 
