@@ -73,8 +73,24 @@ public class MigrationTaskManager {
      * @param info the resource to migrate
      */
     public void submit(final ResourceInfo info) {
+        LOGGER.debug("Submitting resource {} for processing", info.getFullId());
         executorService.submit(new TaskWrapper(info,
                 new MigrateResourceTask(this, resourceMigrator, infoLogger, info)));
+
+        count.incrementAndGet();
+    }
+
+    /**
+     * Processes a resource migration task immediately in the current thread.
+     * Used for archival group members that must be processed serially.
+     *
+     * @param info the resource to migrate
+     */
+    public void processImmediately(final ResourceInfo info) {
+        LOGGER.debug("Processing resource {} immediately", info.getFullId());
+        new TaskWrapper(info,
+                new MigrateResourceTask(this, resourceMigrator, infoLogger, info))
+                .call();
 
         count.incrementAndGet();
     }

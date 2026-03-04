@@ -31,6 +31,7 @@ public class ResourceInfo {
     private final Path outerDirectory;
     private final Path innerDirectory;
     private final Type type;
+    private String archivalGroupId;
 
     /**
      * Used by Jackson for deserialization
@@ -40,11 +41,12 @@ public class ResourceInfo {
     @JsonCreator
     public static ResourceInfo deserialize(@JsonProperty("parentId") final String parentId,
                                            @JsonProperty("fullId") final String fullId,
+                                           @JsonProperty("archivalGroupId") final String archivalGroupId,
                                            @JsonProperty("nameEncoded") final String nameEncoded,
                                            @JsonProperty("outerDirectory") final Path outerDirectory,
                                            @JsonProperty("innerDirectory") final Path innerDirectory,
                                            @JsonProperty("type") final Type type) {
-        return new ResourceInfo(parentId, fullId, outerDirectory, innerDirectory, nameEncoded, type);
+        return new ResourceInfo(parentId, fullId, archivalGroupId, outerDirectory, innerDirectory, nameEncoded, type);
     }
 
     /**
@@ -52,15 +54,17 @@ public class ResourceInfo {
      *
      * @param parentId the internal Fedora id of the resource's parent
      * @param fullId the internal Fedora id of the resource
+     * @param archivalGroupId the archival group id, or null if not part of an archival group
      * @param outerDirectory the export directory that contains the resource
      * @param nameEncoded the final segment of the fullId, percent encoded
      * @return resource info
      */
     public static ResourceInfo container(final String parentId,
                                          final String fullId,
+                                         final String archivalGroupId,
                                          final Path outerDirectory,
                                          final String nameEncoded) {
-        return new ResourceInfo(parentId, fullId, outerDirectory, nameEncoded, Type.CONTAINER);
+        return new ResourceInfo(parentId, fullId, archivalGroupId, outerDirectory, nameEncoded, Type.CONTAINER);
     }
 
     /**
@@ -68,15 +72,17 @@ public class ResourceInfo {
      *
      * @param parentId the internal Fedora id of the resource's parent
      * @param fullId the internal Fedora id of the resource
+     * @param archivalGroupId the archival group id, or null if not part of an archival group
      * @param outerDirectory the export directory that contains the resource
      * @param nameEncoded the final segment of the fullId, percent encoded
      * @return resource info
      */
     public static ResourceInfo binary(final String parentId,
                                       final String fullId,
+                                      final String archivalGroupId,
                                       final Path outerDirectory,
                                       final String nameEncoded) {
-        return new ResourceInfo(parentId, fullId, outerDirectory, nameEncoded, Type.BINARY);
+        return new ResourceInfo(parentId, fullId, archivalGroupId, outerDirectory, nameEncoded, Type.BINARY);
     }
 
     /**
@@ -84,24 +90,28 @@ public class ResourceInfo {
      *
      * @param parentId the internal Fedora id of the resource's parent
      * @param fullId the internal Fedora id of the resource
+     * @param archivalGroupId the archival group id, or null if not part of an archival group
      * @param outerDirectory the export directory that contains the resource
      * @param nameEncoded the final segment of the fullId, percent encoded
      * @return resource info
      */
     public static ResourceInfo externalBinary(final String parentId,
                                               final String fullId,
+                                              final String archivalGroupId,
                                               final Path outerDirectory,
                                               final String nameEncoded) {
-        return new ResourceInfo(parentId, fullId, outerDirectory, nameEncoded, Type.EXTERNAL_BINARY);
+        return new ResourceInfo(parentId, fullId, archivalGroupId, outerDirectory, nameEncoded, Type.EXTERNAL_BINARY);
     }
 
     private ResourceInfo(final String parentId,
                          final String fullId,
+                         final String archivalGroupId,
                          final Path outerDirectory,
                          final String nameEncoded,
                          final Type type) {
         this.parentId = parentId;
         this.fullId = fullId;
+        this.archivalGroupId = archivalGroupId;
         this.nameEncoded = nameEncoded;
         this.outerDirectory = outerDirectory;
         this.innerDirectory = outerDirectory.resolve(nameEncoded);
@@ -110,12 +120,14 @@ public class ResourceInfo {
 
     private ResourceInfo(final String parentId,
                          final String fullId,
+                         final String archivalGroupId,
                          final Path outerDirectory,
                          final Path innerDirectory,
                          final String nameEncoded,
                          final Type type) {
         this.parentId = parentId;
         this.fullId = fullId;
+        this.archivalGroupId = archivalGroupId;
         this.nameEncoded = nameEncoded;
         this.outerDirectory = outerDirectory;
         this.innerDirectory = outerDirectory.resolve(nameEncoded);
@@ -164,11 +176,26 @@ public class ResourceInfo {
         return type;
     }
 
+    /**
+     * @return the archival group id, or null if not part of an archival group
+     */
+    public String getArchivalGroupId() {
+        return archivalGroupId;
+    }
+
+    /**
+     * @param archivalGroupId the archival group id to set
+     */
+    public void setArchivalGroupId(String archivalGroupId) {
+        this.archivalGroupId = archivalGroupId;
+    }
+
     @Override
     public String toString() {
         return "ResourceInfo{" +
                 "parentId='" + parentId + '\'' +
                 ", fullId='" + fullId + '\'' +
+                ", archivalGroupId='" + archivalGroupId + '\'' +
                 ", nameEncoded='" + nameEncoded + '\'' +
                 ", outerDirectory=" + outerDirectory +
                 ", innerDirectory=" + innerDirectory +
@@ -187,6 +214,7 @@ public class ResourceInfo {
         ResourceInfo that = (ResourceInfo) o;
         return Objects.equals(parentId, that.parentId)
                 && Objects.equals(fullId, that.fullId)
+                && Objects.equals(archivalGroupId, that.archivalGroupId)
                 && Objects.equals(nameEncoded, that.nameEncoded)
                 && Objects.equals(outerDirectory.toAbsolutePath(), that.outerDirectory.toAbsolutePath())
                 && Objects.equals(innerDirectory.toAbsolutePath(), that.innerDirectory.toAbsolutePath())
@@ -195,7 +223,7 @@ public class ResourceInfo {
 
     @Override
     public int hashCode() {
-        return Objects.hash(parentId, fullId, nameEncoded,
+        return Objects.hash(parentId, fullId, archivalGroupId, nameEncoded,
                 outerDirectory.toAbsolutePath(), innerDirectory.toAbsolutePath(), type);
     }
 }

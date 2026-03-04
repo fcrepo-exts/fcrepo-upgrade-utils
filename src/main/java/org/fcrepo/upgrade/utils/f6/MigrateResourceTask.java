@@ -47,7 +47,11 @@ public class MigrateResourceTask implements Runnable {
 
             for (final var child : children) {
                 try {
-                    taskManager.submit(child);
+                    if (child.getArchivalGroupId() == null) {
+                        taskManager.submit(child);
+                    } else {
+                        taskManager.processImmediately(child);
+                    }
                 } catch (RuntimeException e) {
                     LOGGER.warn("Failed to queue {} for migration", child.getFullId());
                     infoLogger.log(child);

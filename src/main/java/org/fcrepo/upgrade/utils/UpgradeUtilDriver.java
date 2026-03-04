@@ -156,6 +156,7 @@ public class UpgradeUtilDriver {
         if (config.getTargetVersion().equals(FedoraVersion.V_6)) {
             //base URI only used when migrating to F6
             config.setBaseUri(cmd.getOptionValue("base-uri"));
+            config.setArchivalGroupRdfTypes(cmd.getOptionValue("archival-group-rdf-types"));
         }
         if (cmd.hasOption("digest-algorithm")) {
             final var algo = cmd.getOptionValue("digest-algorithm");
@@ -293,6 +294,15 @@ public class UpgradeUtilDriver {
                 .desc("Skip creating fcr:acl resources and migrate webac:Acl and acl:Authorization resources normally")
                 .required(false)
                 .build());
+
+        configOptions.addOption(Option.builder("ag")
+                .longOpt("archival-group-rdf-types")
+                .hasArg(true)
+                .desc("Comma separated list of RDF type URIs. If a resource has any of the types" +
+                        " in the provided list, it will be created as an archival group in OCFL.")
+                .required(false)
+                .build());
+        // archivalGroupRdfTypes
 
         // S3 options
 
