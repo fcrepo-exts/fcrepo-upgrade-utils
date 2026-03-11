@@ -17,11 +17,9 @@
     repository.
   </description>
   <packaging>jar</packaging>
-
   <repositories>
-    <repository>
       <id>sonatype-nexus-snapshots</id>
-      <url>https://${sonatype.host}/content/repositories/snapshots</url>
+      <url>https://central.sonatype.com/repository/maven-snapshots/</url>
       <releases>
         <enabled>false</enabled>
       </releases>
@@ -35,12 +33,8 @@
     <snapshotRepository>
       <id>sonatype-nexus-snapshots</id>
       <name>Sonatype Nexus Shapshots</name>
-      <url>https://${sonatype.host}/content/repositories/snapshots/</url>
+      <url>https://central.sonatype.com/repository/maven-snapshots/</url>
     </snapshotRepository>
-    <repository>
-      <id>sonatype-nexus-staging</id>
-      <url>https://${sonatype.host}/service/local/staging/deploy/maven2/</url>
-    </repository>
   </distributionManagement>
 
   <properties>
