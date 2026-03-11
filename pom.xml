@@ -18,6 +18,7 @@
   </description>
   <packaging>jar</packaging>
   <repositories>
+    <repository>
       <id>sonatype-nexus-snapshots</id>
       <url>https://central.sonatype.com/repository/maven-snapshots/</url>
       <releases>
