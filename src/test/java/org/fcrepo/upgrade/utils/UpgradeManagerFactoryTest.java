@@ -9,6 +9,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -51,5 +52,31 @@ public class UpgradeManagerFactoryTest {
         UpgradeManagerFactory.create(config);
     }
 
+    @Test
+    public void testCreateS3SessionFactoryFailsWhenS3Unreachable() throws Exception {
+        final var config = new Config();
+        config.setOutputDir(temp.newFolder());
+        config.setWriteToS3(true);
+        config.setS3Bucket("bucket");
+        config.setS3Prefix("prefix");
+        config.setS3Region("us-east-1");
+        config.setS3Endpoint("http://localhost:1");
+        config.setS3PathStyleAccess(true);
+        config.setS3AccessKey("access");
+        config.setS3SecretKey("secret");
+        // Builds the S3 client from the config, then fails when initializing storage against the endpoint
+        assertThrows(RuntimeException.class, () -> UpgradeManagerFactory.createOcflObjectSessionFactory(config));
+    }
+
+    @Test
+    public void testCreateS3SessionFactoryWithoutOptionalSettingsFails() throws Exception {
+        final var config = new Config();
+        config.setOutputDir(temp.newFolder());
+        config.setWriteToS3(true);
+        config.setS3Bucket("bucket");
+        config.setS3AccessKey("access");
+        // Region, endpoint and secret key are not set, so the client falls back to the SDK defaults
+        assertThrows(RuntimeException.class, () -> UpgradeManagerFactory.createOcflObjectSessionFactory(config));
+    }
 
 }
