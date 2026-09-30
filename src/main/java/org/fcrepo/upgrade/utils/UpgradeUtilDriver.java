@@ -46,7 +46,7 @@ public class UpgradeUtilDriver {
     }
 
     UpgradeUtilDriver() {
-        // Prevent public instantiation
+        // Package-private so tests can create an instance; not part of the public API
     }
 
     /**
