@@ -6,7 +6,7 @@
   <parent>
     <groupId>org.fcrepo</groupId>
     <artifactId>fcrepo-parent</artifactId>
-    <version>6.5.1</version>
+    <version>7.0.0</version>
   </parent>
 
   <groupId>org.fcrepo</groupId>
@@ -44,24 +44,21 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.copyrightYear>2019</project.copyrightYear>
-    <logback.version>1.2.13</logback.version>
-    <mockito.version>2.28.2</mockito.version>
+    <logback.version>1.6.4</logback.version>
+    <mockito.version>5.24.0</mockito.version>
     <github.global.server>github</github.global.server>
-    <slf4j.version>1.7.26</slf4j.version>
-    <checkstyle.plugin.version>2.17</checkstyle.plugin.version>
-    <commons-cli.version>1.9.0</commons-cli.version>
-    <jackson.version>2.12.7.1</jackson.version>
-    <jacoco.version>0.8.13</jacoco.version>
-    <jena.version>3.1.1</jena.version>
-    <junit.version>4.13.1</junit.version>
-    <cargo.version>1.4.12</cargo.version>
-    <fcrepo-java-client.version>0.4.0</fcrepo-java-client.version>
-    <fcrepo.storage.ocfl.version>6.3.0</fcrepo.storage.ocfl.version>
-    <commons-lang.version>3.11</commons-lang.version>
-    <commons-collections.version>4.4</commons-collections.version>
-    <ocfl-java.version>1.5.0</ocfl-java.version>
-    <httpclient.version>4.5.13</httpclient.version>
-    <sonatype.host>s01.oss.sonatype.org</sonatype.host>
+    <slf4j.version>2.0.20</slf4j.version>
+    <commons-cli.version>1.11.0</commons-cli.version>
+    <jackson.version>2.22.3</jackson.version>
+    <jacoco.version>0.8.15</jacoco.version>
+    <jena.version>6.2.0</jena.version>
+    <junit.version>4.13.2</junit.version>
+    <fcrepo-java-client.version>6.2.0</fcrepo-java-client.version>
+    <fcrepo.storage.ocfl.version>7.0.0</fcrepo.storage.ocfl.version>
+    <commons-lang.version>3.21.0</commons-lang.version>
+    <commons-collections.version>4.6.0</commons-collections.version>
+    <ocfl-java.version>2.2.3</ocfl-java.version>
+    <httpclient.version>4.5.14</httpclient.version>
   </properties>
 
   <scm>
@@ -71,6 +68,19 @@
     <tag>HEAD</tag>
   </scm>
 
+  <dependencyManagement>
+    <dependencies>
+      <!-- Keep all Jackson modules, including those pulled in by fcrepo-storage-ocfl, on one version -->
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>org.fcrepo</groupId>
@@ -78,7 +88,7 @@
       <version>${fcrepo.storage.ocfl.version}</version>
     </dependency>
     <dependency>
-      <groupId>edu.wisc.library.ocfl</groupId>
+      <groupId>io.ocfl</groupId>
       <artifactId>ocfl-java-aws</artifactId>
       <version>${ocfl-java.version}</version>
     </dependency>
@@ -163,7 +173,7 @@
     <dependency>
       <groupId>org.hamcrest</groupId>
       <artifactId>hamcrest</artifactId>
-      <version>2.2</version>
+      <version>3.0</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -178,7 +188,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.2.1</version>
+        <version>3.6.2</version>
         <executions>
           <execution>
             <phase>package</phase>
@@ -214,11 +224,6 @@
       </plugin>
 
 
-      <!--plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-checkstyle-plugin</artifactId>
-	<version>${checkstyle.plugin.version}</version>
-      </plugin-->
 
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>

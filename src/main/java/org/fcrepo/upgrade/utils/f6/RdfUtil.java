@@ -13,7 +13,6 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.RDFNode;
-import org.apache.jena.rdf.model.SimpleSelector;
 import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.rdf.model.StmtIterator;
 import org.apache.jena.riot.Lang;
@@ -162,7 +161,7 @@ public final class RdfUtil {
      * @return statement iter
      */
     public static StmtIterator listStatements(final Property predicate, final Model rdf) {
-        return rdf.listStatements(new SimpleSelector(null, predicate, (RDFNode) null));
+        return rdf.listStatements(null, predicate, (RDFNode) null);
     }
 
     private static boolean isServerManagedTriple(final Statement statement) {
