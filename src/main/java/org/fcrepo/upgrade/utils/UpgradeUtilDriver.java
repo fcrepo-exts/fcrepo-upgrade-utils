@@ -247,7 +247,7 @@ public class UpgradeUtilDriver {
                 .desc("The RDF language used in the Fedora export, expressed as a content type." +
                         System.lineSeparator() + "Acceptable values are: application/ld+json, application/n-triples," +
                         " application/rdf+xml, text/n3, text/rdf+n3, text/turtle." + System.lineSeparator() +
-                        "Default: " + Config.DEFAULT_SRC_RDF_LANG.getContentType().getContentType())
+                        "Default: " + Config.DEFAULT_SRC_RDF_LANG.getContentType().getContentTypeStr())
                 .required(false)
                 .build());
 

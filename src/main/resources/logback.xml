@@ -14,13 +14,14 @@
     <appender name="REMAINING" class="ch.qos.logback.classic.sift.SiftingAppender">
         <discriminator>
             <Key>defaultKey</Key>
-            <defaultValue>defaultValue</defaultValue>
+            <!-- Used as the file name prefix; the sifting appender only creates the file when something is logged -->
+            <defaultValue>remaining</defaultValue>
         </discriminator>
         <sift>
             <appender name="REMAINING-INNER" class="ch.qos.logback.core.FileAppender">
                 <!-- use the previously created timestamp to create a uniquely
                   named log file -->
-                <file>${PWD}/remaining_${bySecond}.log</file>
+                <file>${PWD}/${defaultKey}_${bySecond}.log</file>
                 <prudent>true</prudent>
                 <encoder>
                     <pattern>%msg%n</pattern>

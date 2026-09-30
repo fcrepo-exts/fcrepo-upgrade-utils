@@ -8,7 +8,6 @@ package org.fcrepo.upgrade.utils.f6;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
-import org.apache.jena.sparql.pfunction.library.version;
 import org.apache.jena.vocabulary.RDF;
 import org.fcrepo.client.FedoraTypes;
 import org.fcrepo.storage.ocfl.OcflObjectSession;

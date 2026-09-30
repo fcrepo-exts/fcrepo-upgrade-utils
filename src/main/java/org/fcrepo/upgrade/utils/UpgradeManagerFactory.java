@@ -10,16 +10,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
-import edu.wisc.library.ocfl.api.MutableOcflRepository;
-import edu.wisc.library.ocfl.api.OcflConfig;
-import edu.wisc.library.ocfl.api.model.DigestAlgorithm;
-import edu.wisc.library.ocfl.api.model.OcflVersion;
-import edu.wisc.library.ocfl.aws.OcflS3Client;
-import edu.wisc.library.ocfl.core.OcflRepositoryBuilder;
-import edu.wisc.library.ocfl.core.extension.storage.layout.config.HashedNTupleLayoutConfig;
-import edu.wisc.library.ocfl.core.path.mapper.LogicalPathMappers;
-import edu.wisc.library.ocfl.core.storage.OcflStorage;
-import edu.wisc.library.ocfl.core.storage.OcflStorageBuilder;
+import io.ocfl.api.MutableOcflRepository;
+import io.ocfl.api.OcflConfig;
+import io.ocfl.api.model.DigestAlgorithm;
+import io.ocfl.api.model.OcflVersion;
+import io.ocfl.aws.OcflS3Client;
+import io.ocfl.core.OcflRepositoryBuilder;
+import io.ocfl.core.extension.storage.layout.config.HashedNTupleLayoutConfig;
+import io.ocfl.core.path.mapper.LogicalPathMappers;
+import io.ocfl.core.storage.OcflStorage;
+import io.ocfl.core.storage.OcflStorageBuilder;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.SystemUtils;
 import org.fcrepo.storage.ocfl.CommitType;
@@ -32,7 +32,7 @@ import org.fcrepo.upgrade.utils.f6.ResourceMigrator;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -143,8 +143,9 @@ public class UpgradeManagerFactory {
                 .buildMutable();
     }
 
-    private static S3Client s3Client(final Config config) {
-        final var builder = S3Client.builder();
+    private static S3AsyncClient s3Client(final Config config) {
+        // multipartEnabled lets the client use UploadPartCopy for objects over the 5GB CopyObject limit
+        final var builder = S3AsyncClient.builder().multipartEnabled(true);
 
         if (StringUtils.isNotBlank(config.getS3Region())) {
             builder.region(Region.of(config.getS3Region()));
