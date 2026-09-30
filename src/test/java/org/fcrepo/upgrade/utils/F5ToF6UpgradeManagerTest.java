@@ -8,6 +8,7 @@ package org.fcrepo.upgrade.utils;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -20,8 +21,10 @@ import java.time.Instant;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.jena.riot.Lang;
+import org.fcrepo.upgrade.utils.f6.ResourceInfo;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Rule;
@@ -106,6 +109,30 @@ public class F5ToF6UpgradeManagerTest {
         upgradeManager.start();
 
         assertMigration(Paths.get("src/test/resources/5.1-to-6-expected"));
+    }
+
+    @Test
+    public void migrateFromResourceInfoFile() throws IOException {
+        final var input = Paths.get("src/test/resources/5.1-export");
+        final var root = ResourceInfo.container("info:fedora", "info:fedora", null, input, "rest");
+        final var infoFile = tempFolder.newFile().toPath();
+        Files.writeString(infoFile, new ObjectMapper().writeValueAsString(root) + System.lineSeparator());
+
+        config.setInputDir(input.toFile());
+        config.setResourceInfoFile(infoFile);
+
+        UpgradeManagerFactory.create(config).start();
+
+        assertMigration(Paths.get("src/test/resources/5.1-to-6-expected"));
+    }
+
+    @Test
+    public void failWhenExportHasNoRepositoryRoot() throws IOException {
+        config.setInputDir(tempFolder.newFolder());
+
+        final var upgradeManager = UpgradeManagerFactory.create(config);
+
+        assertThrows(IllegalStateException.class, upgradeManager::start);
     }
 
     private void checkInstantNotOlderThan(Instant created, int ms) {

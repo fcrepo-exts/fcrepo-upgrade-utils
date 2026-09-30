@@ -45,8 +45,8 @@ public class UpgradeUtilDriver {
         VALID_MIGRATION_PATHS.put(FedoraVersion.V_5, Set.of(FedoraVersion.V_6));
     }
 
-    private UpgradeUtilDriver() {
-        // Prevent public instantiation
+    UpgradeUtilDriver() {
+        // Package-private so tests can create an instance; not part of the public API
     }
 
     /**
@@ -60,13 +60,15 @@ public class UpgradeUtilDriver {
         try {
             driver.run(args);
 
+        } catch (final ExitException e) {
+            System.exit(e.getStatus());
         } catch (final Exception e) {
             logger.error("Error performing upgrade: {}", e.getMessage());
             logger.debug("Stacktrace: ", e);
         }
     }
 
-    private void run(final String[] args) {
+    void run(final String[] args) {
         final var configOptions = options();
         final var config = parseOptions(configOptions, args);
 
@@ -80,15 +82,14 @@ public class UpgradeUtilDriver {
         }
     }
 
-    private Config parseOptions(final Options configOptions, final String[] args) {
+    Config parseOptions(final Options configOptions, final String[] args) {
         // first see if they've specified a config file
         final CommandLineParser parser = new DefaultParser();
         final CommandLine cmd;
         try {
             cmd = parser.parse(configOptions, args);
         } catch (final ParseException e) {
-            printHelpAndExit(e.getMessage(), configOptions);
-            throw new RuntimeException("I am unreachable");
+            throw printHelpAndExit(e.getMessage(), configOptions);
         }
 
         logger.info("Command line parameters: ");
@@ -155,6 +156,9 @@ public class UpgradeUtilDriver {
 
         if (config.getTargetVersion().equals(FedoraVersion.V_6)) {
             //base URI only used when migrating to F6
+            if (cmd.getOptionValue("base-uri") == null) {
+                printHelpAndExit("base-uri must be specified when migrating to Fedora 6", configOptions);
+            }
             config.setBaseUri(cmd.getOptionValue("base-uri"));
             config.setArchivalGroupRdfTypes(cmd.getOptionValue("archival-group-rdf-types"));
         }
@@ -184,12 +188,6 @@ public class UpgradeUtilDriver {
             config.setResourceInfoFile(Paths.get(cmd.getOptionValue('R')));
         }
 
-        if (config.getTargetVersion() == FedoraVersion.V_6) {
-            if (config.getBaseUri() == null) {
-                printHelpAndExit("base-uri must be specified when migrating to Fedora 6", configOptions);
-            }
-        }
-
         if (config.isWriteToS3() && StringUtils.isBlank(config.getS3Bucket())) {
             printHelpAndExit("s3-bucket must be specified when writing to S3", configOptions);
         }
@@ -197,7 +195,7 @@ public class UpgradeUtilDriver {
         return config;
     }
 
-    private Options options() {
+    Options options() {
         // Help option
         final Options configOptions = new org.apache.commons.cli.Options();
 
@@ -376,11 +374,34 @@ public class UpgradeUtilDriver {
         return versions.stream().map(FedoraVersion::getStringValue).sorted().collect(Collectors.joining(", "));
     }
 
-    private static void printHelpAndExit(final String errorMessage, final Options options) {
+    /**
+     * Prints the error message and usage, then throws an {@link ExitException} which {@link #main} converts
+     * into a non-zero exit status.
+     */
+    private static ExitException printHelpAndExit(final String errorMessage, final Options options) {
         final HelpFormatter formatter = new HelpFormatter();
         System.err.println(errorMessage);
         formatter.printHelp("java -jar fcrepo-upgrade-util-<version>.jar", options);
-        System.exit(1);
+        throw new ExitException(1);
+    }
+
+    /**
+     * Signals that the process should exit with the given status.
+     */
+    static class ExitException extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
+        private final int status;
+
+        ExitException(final int status) {
+            super("exit status " + status);
+            this.status = status;
+        }
+
+        int getStatus() {
+            return status;
+        }
     }
 
 }
