@@ -51,6 +51,7 @@
     <checkstyle.plugin.version>2.17</checkstyle.plugin.version>
     <commons-cli.version>1.3</commons-cli.version>
     <jackson.version>2.12.7.1</jackson.version>
+    <jacoco.version>0.8.13</jacoco.version>
     <jena.version>3.1.1</jena.version>
     <junit.version>4.13.1</junit.version>
     <cargo.version>1.4.12</cargo.version>
@@ -242,6 +243,7 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
+          <argLine>-Xms512m -Xmx1024m ${jacoco.agent.unit.arg}</argLine>
           <systemPropertyVariables>
             <project.build.directory>${project.build.directory}</project.build.directory>
           </systemPropertyVariables>
@@ -251,6 +253,29 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <id>default-prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+            <configuration>
+              <propertyName>jacoco.agent.unit.arg</propertyName>
+            </configuration>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/jacoco</outputDirectory>
+              <formats>XML</formats>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
 
       <plugin>
