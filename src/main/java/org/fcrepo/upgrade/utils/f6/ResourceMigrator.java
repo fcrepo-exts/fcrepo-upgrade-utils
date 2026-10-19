@@ -111,7 +111,7 @@ public class ResourceMigrator {
         LOGGER.debug("Resource info: {}", info);
 
         try {
-            if (!containsResource(info.getFullId())) {
+            if (!containsResource(info)) {
                 switch (info.getType()) {
                     case BINARY:
                         migrateBinary(info);
@@ -127,6 +127,9 @@ public class ResourceMigrator {
                 }
             } else {
                 LOGGER.info("Skipping {} because it has already been migrated", info.getFullId());
+                // For previously transformed AGs, need to restore the AG id on the resource otherwise its children
+                // will be processed again and create duplicate objects.
+                restoreArchivalGroupId(info);
             }
 
             if (info.getType() == ResourceInfo.Type.CONTAINER) {
@@ -319,9 +322,24 @@ public class ResourceMigrator {
         }
     }
 
-    private boolean containsResource(final String fullId) {
-        try (final var session = objectSessionFactory.newSession(fullId)) {
-            return session.containsResource(fullId);
+    private boolean containsResource(final ResourceInfo info) {
+        // For archival groups, need to check the AG id
+        final var sessionId = info.getArchivalGroupId() == null ? info.getFullId() : info.getArchivalGroupId();
+        try (final var session = objectSessionFactory.newSession(sessionId)) {
+            return session.containsResource(info.getFullId());
+        }
+    }
+
+    private void restoreArchivalGroupId(final ResourceInfo info) {
+        if (info.getArchivalGroupId() != null) {
+            return;
+        }
+
+        try (final var session = objectSessionFactory.newSession(info.getFullId())) {
+            final var headers = session.readHeaders(info.getFullId());
+            if (headers.isArchivalGroup()) {
+                info.setArchivalGroupId(info.getFullId());
+            }
         }
     }
 

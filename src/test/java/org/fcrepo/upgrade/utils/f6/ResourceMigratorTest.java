@@ -316,6 +316,56 @@ public class ResourceMigratorTest {
         assertHeadSame(containerChild.getFullId(), expectedContainerHeaders, expectedContent);
     }
 
+    @Test
+    public void migrateArchivalGroupWithBinary() throws Exception {
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+        final var archivalGroup = archivalGroupInfo();
+
+        final var binary = migrate(archivalGroup).get(0);
+        assertEquals(ResourceInfo.Type.BINARY, binary.getType());
+        migrateNoChildren(binary);
+
+        final var binaryDescription = join(binary.getFullId(), FCR_META);
+        final var archivalGroupSession = migrationOcflFactory.newSession(archivalGroup.getFullId());
+        assertTrue(archivalGroupSession.containsResource(binaryDescription));
+
+        try (final var paths = Files.walk(output)) {
+            final var objectCount = paths
+                    .filter(path -> path.getFileName().toString().equals("inventory.json"))
+                    .filter(path -> !path.getParent().getFileName().toString().matches("v\\d+"))
+                    .count();
+            assertEquals("The archival group and all of its members must share one OCFL object", 1, objectCount);
+        }
+    }
+
+    @Test
+    public void resumeArchivalGroupWithBinary() throws Exception {
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+
+        final var archivalGroup = archivalGroupInfo();
+        final var binary = migrate(archivalGroup).get(0);
+        migrateNoChildren(binary);
+
+        // A restarted migration reconstructs the root without its transient archival group ID.
+        final var resumedArchivalGroup = archivalGroupInfo();
+        final var resumedBinary = migrate(resumedArchivalGroup).get(0);
+        migrateNoChildren(resumedBinary);
+
+        final var binaryDescription = join(resumedBinary.getFullId(), FCR_META);
+        final var archivalGroupSession = migrationOcflFactory.newSession(archivalGroup.getFullId());
+        assertTrue(archivalGroupSession.containsResource(binaryDescription));
+
+        try (final var paths = Files.walk(output)) {
+            final var objectCount = paths
+                    .filter(path -> path.getFileName().toString().equals("inventory.json"))
+                    .filter(path -> !path.getParent().getFileName().toString().matches("v\\d+"))
+                    .count();
+            assertEquals("A resumed archival-group migration must not create additional OCFL objects", 1, objectCount);
+        }
+    }
+
     private ResourceHeaders.Builder expectedBuilder(final String id) {
         final var expectedSession = expectedOcflFactory.newSession(id);
         final var expectedHeaders = expectedSession.readHeaders(id);
@@ -444,6 +494,12 @@ public class ResourceMigratorTest {
 
     private ResourceInfo containerInfo(final String name) {
         return ResourceInfo.container(ROOT, join(ROOT, name), null, rootInner, encode(name));
+    }
+
+    private ResourceInfo archivalGroupInfo() {
+        final var fixtureRoot = Paths.get("src/test/resources/5.1-archival-group-export/rest");
+        final var name = "archival-group-with-binary";
+        return ResourceInfo.container(ROOT, join(ROOT, name), null, fixtureRoot, encode(name));
     }
 
     private String encode(final String value) {
