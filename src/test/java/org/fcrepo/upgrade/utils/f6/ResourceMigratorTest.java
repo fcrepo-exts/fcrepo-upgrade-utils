@@ -320,7 +320,7 @@ public class ResourceMigratorTest {
     public void migrateArchivalGroupWithBinary() throws Exception {
         config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
         migrator = new ResourceMigrator(config, migrationOcflFactory);
-        final var archivalGroup = containerInfo("archival-group-with-binary");
+        final var archivalGroup = archivalGroupInfo();
 
         final var binary = migrate(archivalGroup).get(0);
         assertEquals(ResourceInfo.Type.BINARY, binary.getType());
@@ -344,12 +344,12 @@ public class ResourceMigratorTest {
         config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
         migrator = new ResourceMigrator(config, migrationOcflFactory);
 
-        final var archivalGroup = containerInfo("archival-group-with-binary");
+        final var archivalGroup = archivalGroupInfo();
         final var binary = migrate(archivalGroup).get(0);
         migrateNoChildren(binary);
 
         // A restarted migration reconstructs the root without its transient archival group ID.
-        final var resumedArchivalGroup = containerInfo("archival-group-with-binary");
+        final var resumedArchivalGroup = archivalGroupInfo();
         final var resumedBinary = migrate(resumedArchivalGroup).get(0);
         migrateNoChildren(resumedBinary);
 
@@ -494,6 +494,12 @@ public class ResourceMigratorTest {
 
     private ResourceInfo containerInfo(final String name) {
         return ResourceInfo.container(ROOT, join(ROOT, name), null, rootInner, encode(name));
+    }
+
+    private ResourceInfo archivalGroupInfo() {
+        final var fixtureRoot = Paths.get("src/test/resources/5.1-archival-group-export/rest");
+        final var name = "archival-group-with-binary";
+        return ResourceInfo.container(ROOT, join(ROOT, name), null, fixtureRoot, encode(name));
     }
 
     private String encode(final String value) {
