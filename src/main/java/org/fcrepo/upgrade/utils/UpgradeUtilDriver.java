@@ -161,6 +161,13 @@ public class UpgradeUtilDriver {
             }
             config.setBaseUri(cmd.getOptionValue("base-uri"));
             config.setArchivalGroupRdfTypes(cmd.getOptionValue("archival-group-rdf-types"));
+            if (cmd.hasOption("autoversioning")) {
+                final var autoversioning = cmd.getOptionValue("autoversioning");
+                if (!"true".equalsIgnoreCase(autoversioning) && !"false".equalsIgnoreCase(autoversioning)) {
+                    printHelpAndExit("autoversioning must be true or false", configOptions);
+                }
+                config.setAutoversioning(Boolean.parseBoolean(autoversioning));
+            }
         }
         if (cmd.hasOption("digest-algorithm")) {
             final var algo = cmd.getOptionValue("digest-algorithm");
@@ -300,7 +307,14 @@ public class UpgradeUtilDriver {
                         " in the provided list, it will be created as an archival group in OCFL.")
                 .required(false)
                 .build());
-        // archivalGroupRdfTypes
+
+        configOptions.addOption(Option.builder()
+                .longOpt("autoversioning")
+                .hasArg(true)
+                .desc("Commit the current state of migrated resources as a new OCFL version. " +
+                        "Set to false to stage it in mutable HEAD. Default: " + Config.DEFAULT_AUTOVERSIONING)
+                .required(false)
+                .build());
 
         // S3 options
 

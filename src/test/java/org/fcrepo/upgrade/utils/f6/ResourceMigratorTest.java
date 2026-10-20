@@ -33,6 +33,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -364,6 +365,56 @@ public class ResourceMigratorTest {
                     .count();
             assertEquals("A resumed archival-group migration must not create additional OCFL objects", 1, objectCount);
         }
+    }
+
+    @Test
+    public void migrateArchivalGroupToMutableHead() throws Exception {
+        config.setAutoversioning(false);
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+
+        final var archivalGroup = archivalGroupInfo();
+        final var binary = migrate(archivalGroup).get(0);
+        migrateNoChildren(binary);
+
+        final var session = migrationOcflFactory.newSession(archivalGroup.getFullId());
+        assertTrue(session.containsResource(archivalGroup.getFullId()));
+        assertTrue(session.containsResource(binary.getFullId()));
+        assertTrue(session.containsResource(join(binary.getFullId(), FCR_META)));
+        assertEquals(List.of(), session.listVersions(archivalGroup.getFullId()));
+
+        try (final var paths = Files.walk(output)) {
+            assertTrue("The current resources must be staged in mutable HEAD", paths
+                    .anyMatch(path -> path.endsWith(Paths.get("extensions", "0005-mutable-head", "head"))));
+        }
+    }
+
+    @Test
+    public void migrateVersionsToImmutableVersionsAndMutableHead() throws IOException {
+        config.setAutoversioning(false);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+        final var info = binaryInfo("binary-with-versions");
+
+        migrateNoChildren(info);
+
+        final var session = migrationOcflFactory.newSession(info.getFullId());
+        final var versions = session.listVersions(info.getFullId()).stream()
+                .map(version -> version.getVersionNumber())
+                .collect(Collectors.toList());
+        assertEquals(List.of("v1", "v2"), versions);
+
+        try (final var paths = Files.walk(output)) {
+            final var headInventory = paths
+                    .filter(path -> path.endsWith(Paths.get("extensions", "0005-mutable-head", "head", "inventory.json")))
+                    .findFirst()
+                    .orElseThrow();
+            assertTrue("The mutable HEAD inventory must contain v3", Files.readString(headInventory).contains("\"v3\""));
+        }
+
+        final var actual = session.readContent(info.getFullId());
+        final var expected = expectedOcflFactory.newSession(info.getFullId()).readContent(info.getFullId());
+        assertEquals(actual.getHeaders(), expected.getHeaders());
+        assertEquals(hash(expected.getContentStream().get()), hash(actual.getContentStream().get()));
     }
 
     private ResourceHeaders.Builder expectedBuilder(final String id) {

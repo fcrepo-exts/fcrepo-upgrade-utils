@@ -16,9 +16,17 @@ The following CLI options are available:
 
 ```
 usage: java -jar fcrepo-upgrade-util-<version>.jar
- -d,--digest-algorithm <arg>         The digest algorithm to use in OCFL.
-                                     Default: sha512
- -h,--help                           Print these options
+ -ag,--archival-group-rdf-types <arg> Comma separated list of RDF type URIs.
+                                      If a resource has any of the types in
+                                      the provided list, it will be created
+                                      as an archival group in OCFL.
+     --autoversioning <arg>           Commit the current state of migrated
+                                      resources as a new OCFL version. Set to
+                                      false to stage it in mutable HEAD.
+                                      Default: true
+  -d,--digest-algorithm <arg>         The digest algorithm to use in OCFL.
+                                      Default: sha512
+  -h,--help                           Print these options
  -i,--input-dir <arg>                The path to the directory containing
                                      a Fedora 4.7.x or Fedora 5.x export
     --migration-user <arg>           The user to attribute OCFL versions

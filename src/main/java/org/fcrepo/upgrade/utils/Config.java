@@ -26,6 +26,7 @@ public class Config {
     public static final List<String> VALID_DIGEST_ALGORITHMS = List.of(DEFAULT_DIGEST_ALGORITHM, "sha256");
     public static final Lang DEFAULT_SRC_RDF_LANG = Lang.TTL;
     public static final int DEFAULT_THREADS = Runtime.getRuntime().availableProcessors();
+    public static final boolean DEFAULT_AUTOVERSIONING = true;
 
     private FedoraVersion sourceVersion;
     private FedoraVersion targetVersion;
@@ -43,6 +44,7 @@ public class Config {
     private Path resourceInfoFile;
     private boolean skipAcls = false;
     private String archivalGroupRdfTypes;
+    private boolean autoversioning = DEFAULT_AUTOVERSIONING;
 
     // S3 Options
     private boolean writeToS3;
@@ -286,6 +288,20 @@ public class Config {
     }
 
     /**
+     * @return true if the current state of migrated resources should be committed as a new OCFL version
+     */
+    public boolean isAutoversioning() {
+        return autoversioning;
+    }
+
+    /**
+     * @param autoversioning true to commit the current state as a new OCFL version; false to stage it in mutable HEAD
+     */
+    public void setAutoversioning(final boolean autoversioning) {
+        this.autoversioning = autoversioning;
+    }
+
+    /**
      * @return true if should write migrated resources to S3
      */
     public boolean isWriteToS3() {
@@ -426,6 +442,7 @@ public class Config {
                 ", fedoraUserAddress='" + fedoraUserAddress + '\'' +
                 ", forceWindowsMode=" + forceWindowsMode +
                 ", skipAcls=" + skipAcls +
+                ", autoversioning=" + autoversioning +
                 ", writeToS3=" + writeToS3 +
                 ", s3Region='" + s3Region + '\'' +
                 ", s3Endpoint='" + s3Endpoint + '\'' +
