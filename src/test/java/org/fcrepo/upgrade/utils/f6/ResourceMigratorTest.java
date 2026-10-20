@@ -33,6 +33,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -316,6 +317,106 @@ public class ResourceMigratorTest {
         assertHeadSame(containerChild.getFullId(), expectedContainerHeaders, expectedContent);
     }
 
+    @Test
+    public void migrateArchivalGroupWithBinary() throws Exception {
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+        final var archivalGroup = archivalGroupInfo();
+
+        final var binary = migrate(archivalGroup).get(0);
+        assertEquals(ResourceInfo.Type.BINARY, binary.getType());
+        migrateNoChildren(binary);
+
+        final var binaryDescription = join(binary.getFullId(), FCR_META);
+        final var archivalGroupSession = migrationOcflFactory.newSession(archivalGroup.getFullId());
+        assertTrue(archivalGroupSession.containsResource(binaryDescription));
+
+        try (final var paths = Files.walk(output)) {
+            final var objectCount = paths
+                    .filter(path -> path.getFileName().toString().equals("inventory.json"))
+                    .filter(path -> !path.getParent().getFileName().toString().matches("v\\d+"))
+                    .count();
+            assertEquals("The archival group and all of its members must share one OCFL object", 1, objectCount);
+        }
+    }
+
+    @Test
+    public void resumeArchivalGroupWithBinary() throws Exception {
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+
+        final var archivalGroup = archivalGroupInfo();
+        final var binary = migrate(archivalGroup).get(0);
+        migrateNoChildren(binary);
+
+        // A restarted migration reconstructs the root without its transient archival group ID.
+        final var resumedArchivalGroup = archivalGroupInfo();
+        final var resumedBinary = migrate(resumedArchivalGroup).get(0);
+        migrateNoChildren(resumedBinary);
+
+        final var binaryDescription = join(resumedBinary.getFullId(), FCR_META);
+        final var archivalGroupSession = migrationOcflFactory.newSession(archivalGroup.getFullId());
+        assertTrue(archivalGroupSession.containsResource(binaryDescription));
+
+        try (final var paths = Files.walk(output)) {
+            final var objectCount = paths
+                    .filter(path -> path.getFileName().toString().equals("inventory.json"))
+                    .filter(path -> !path.getParent().getFileName().toString().matches("v\\d+"))
+                    .count();
+            assertEquals("A resumed archival-group migration must not create additional OCFL objects", 1, objectCount);
+        }
+    }
+
+    @Test
+    public void migrateArchivalGroupToMutableHead() throws Exception {
+        config.setAutoversioning(false);
+        config.setArchivalGroupRdfTypes(FedoraTypes.LDP_BASIC_CONTAINER);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+
+        final var archivalGroup = archivalGroupInfo();
+        final var binary = migrate(archivalGroup).get(0);
+        migrateNoChildren(binary);
+
+        final var session = migrationOcflFactory.newSession(archivalGroup.getFullId());
+        assertTrue(session.containsResource(archivalGroup.getFullId()));
+        assertTrue(session.containsResource(binary.getFullId()));
+        assertTrue(session.containsResource(join(binary.getFullId(), FCR_META)));
+        assertEquals(List.of(), session.listVersions(archivalGroup.getFullId()));
+
+        try (final var paths = Files.walk(output)) {
+            assertTrue("The current resources must be staged in mutable HEAD", paths
+                    .anyMatch(path -> path.endsWith(Paths.get("extensions", "0005-mutable-head", "head"))));
+        }
+    }
+
+    @Test
+    public void migrateVersionsToImmutableVersionsAndMutableHead() throws IOException {
+        config.setAutoversioning(false);
+        migrator = new ResourceMigrator(config, migrationOcflFactory);
+        final var info = binaryInfo("binary-with-versions");
+
+        migrateNoChildren(info);
+
+        final var session = migrationOcflFactory.newSession(info.getFullId());
+        final var versions = session.listVersions(info.getFullId()).stream()
+                .map(version -> version.getVersionNumber())
+                .collect(Collectors.toList());
+        assertEquals(List.of("v1", "v2"), versions);
+
+        try (final var paths = Files.walk(output)) {
+            final var headInventory = paths
+                    .filter(path -> path.endsWith(Paths.get("extensions", "0005-mutable-head", "head", "inventory.json")))
+                    .findFirst()
+                    .orElseThrow();
+            assertTrue("The mutable HEAD inventory must contain v3", Files.readString(headInventory).contains("\"v3\""));
+        }
+
+        final var actual = session.readContent(info.getFullId());
+        final var expected = expectedOcflFactory.newSession(info.getFullId()).readContent(info.getFullId());
+        assertEquals(actual.getHeaders(), expected.getHeaders());
+        assertEquals(hash(expected.getContentStream().get()), hash(actual.getContentStream().get()));
+    }
+
     private ResourceHeaders.Builder expectedBuilder(final String id) {
         final var expectedSession = expectedOcflFactory.newSession(id);
         final var expectedHeaders = expectedSession.readHeaders(id);
@@ -444,6 +545,12 @@ public class ResourceMigratorTest {
 
     private ResourceInfo containerInfo(final String name) {
         return ResourceInfo.container(ROOT, join(ROOT, name), null, rootInner, encode(name));
+    }
+
+    private ResourceInfo archivalGroupInfo() {
+        final var fixtureRoot = Paths.get("src/test/resources/5.1-archival-group-export/rest");
+        final var name = "archival-group-with-binary";
+        return ResourceInfo.container(ROOT, join(ROOT, name), null, fixtureRoot, encode(name));
     }
 
     private String encode(final String value) {

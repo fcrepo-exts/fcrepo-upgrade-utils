@@ -34,6 +34,7 @@ public class ConfigTest {
         assertEquals(Config.DEFAULT_USER_ADDRESS, config.getFedoraUserAddress());
         assertEquals(Config.DEFAULT_SRC_RDF_LANG, config.getSrcRdfLang());
         assertEquals(Config.DEFAULT_DIGEST_ALGORITHM, config.getDigestAlgorithm());
+        assertTrue(config.isAutoversioning());
     }
 
     @Test

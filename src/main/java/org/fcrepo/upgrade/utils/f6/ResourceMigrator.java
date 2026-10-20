@@ -41,6 +41,7 @@ import org.apache.jena.rdf.model.Property;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.vocabulary.RDF;
 import org.fcrepo.storage.ocfl.InteractionModel;
+import org.fcrepo.storage.ocfl.CommitType;
 import org.fcrepo.storage.ocfl.OcflObjectSession;
 import org.fcrepo.storage.ocfl.OcflObjectSessionFactory;
 import org.fcrepo.storage.ocfl.ResourceHeaders;
@@ -80,6 +81,7 @@ public class ResourceMigrator {
     private final Lang dstRdfLang;
     private final String baseUri;
     private final Set<String> archivalGroupRdfTypes;
+    private final boolean autoversioning;
 
     /**
      * @param config the migration configuration
@@ -95,6 +97,7 @@ public class ResourceMigrator {
         this.srcRdfExt = "." + config.getSrcRdfExt();
 
         archivalGroupRdfTypes = parseArchivalGroupRdfTypes(config.getArchivalGroupRdfTypes());
+        autoversioning = config.isAutoversioning();
 
         // Currently, this is all F6 supports
         this.dstRdfLang = Lang.NT;
@@ -111,7 +114,7 @@ public class ResourceMigrator {
         LOGGER.debug("Resource info: {}", info);
 
         try {
-            if (!containsResource(info.getFullId())) {
+            if (!containsResource(info)) {
                 switch (info.getType()) {
                     case BINARY:
                         migrateBinary(info);
@@ -127,6 +130,9 @@ public class ResourceMigrator {
                 }
             } else {
                 LOGGER.info("Skipping {} because it has already been migrated", info.getFullId());
+                // For previously transformed AGs, need to restore the AG id on the resource otherwise its children
+                // will be processed again and create duplicate objects.
+                restoreArchivalGroupId(info);
             }
 
             if (info.getType() == ResourceInfo.Type.CONTAINER) {
@@ -164,7 +170,7 @@ public class ResourceMigrator {
                 lastVersionUpdate = RdfUtil.getDateValue(FEDORA_LAST_MODIFIED_DATE, rdf);
                 final var mementoInstant = parseMemento(version);
 
-                migrateContainerVersion(info, containerDir, rdf, mementoInstant);
+                migrateContainerVersion(info, containerDir, rdf, mementoInstant, true);
             }
         }
 
@@ -173,14 +179,15 @@ public class ResourceMigrator {
                                                             Instant.now());
         // only migrate the state if it's different from the most recent memento
         if (lastVersionUpdate == null || !lastVersionUpdate.equals(currentUpdate)) {
-            migrateContainerVersion(info, containerDir, rdf, currentUpdate);
+            migrateContainerVersion(info, containerDir, rdf, currentUpdate, autoversioning);
         }
     }
 
     private void migrateContainerVersion(final ResourceInfo info,
-                                         final Path containerDir,
-                                         final Model rdf,
-                                         final Instant timestamp) {
+                                          final Path containerDir,
+                                          final Model rdf,
+                                          final Instant timestamp,
+                                          final boolean createVersion) {
         final var interactionModel = identifyInteractionModel(info.getFullId(), rdf);
         final boolean isArchivalGroup = checkForArchivalGroup(info, rdf);
 
@@ -201,6 +208,7 @@ public class ResourceMigrator {
                 migrateAcl(info.getFullId(), headers.getArchivalGroupId(), containerDir, session);
             }
 
+            session.commitType(createVersion ? CommitType.NEW_VERSION : CommitType.UNVERSIONED);
             session.commit();
         });
     }
@@ -225,7 +233,7 @@ public class ResourceMigrator {
                 final var mementoInstant = parseMemento(version);
 
                 migrateBinaryVersion(info, binaryDir,
-                        binaryDir.resolve(FCR_VERSIONS).resolve(binaryFile(version)), rdf, mementoInstant);
+                        binaryDir.resolve(FCR_VERSIONS).resolve(binaryFile(version)), rdf, mementoInstant, true);
             }
         }
 
@@ -235,22 +243,24 @@ public class ResourceMigrator {
         // only migrate the state if it's different from the most recent memento
         if (lastVersionUpdate == null || !lastVersionUpdate.equals(currentUpdate)) {
             migrateBinaryVersion(info, binaryDir,
-                    info.getOuterDirectory().resolve(binaryFile(info.getNameEncoded())), rdf, currentUpdate);
+                    info.getOuterDirectory().resolve(binaryFile(info.getNameEncoded())), rdf, currentUpdate,
+                    autoversioning);
         }
     }
 
     private void migrateBinaryVersion(final ResourceInfo info,
                                       final Path binaryDir,
-                                      final Path binaryFile,
-                                      final Model rdf,
-                                      final Instant timestamp) {
+                                       final Path binaryFile,
+                                       final Model rdf,
+                                       final Instant timestamp,
+                                       final boolean createVersion) {
         final var headers = createBinaryHeaders(info, rdf);
 
         final var descId = joinId(info.getFullId(), FCR_METADATA_ID);
         final var descHeaders = createBinaryDescHeaders(info.getFullId(), descId, headers.getArchivalGroupId(), rdf);
 
         try (final var stream = new BufferedInputStream(Files.newInputStream(binaryFile))) {
-            writeBinary(info.getFullId(), binaryDir, headers, stream, descHeaders, rdf, timestamp);
+            writeBinary(info.getFullId(), binaryDir, headers, stream, descHeaders, rdf, timestamp, createVersion);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -269,7 +279,7 @@ public class ResourceMigrator {
         final var descHeaders = createBinaryDescHeaders(info.getFullId(), descId, headers.getArchivalGroupId(), rdf);
 
         writeBinary(info.getFullId(), info.getInnerDirectory(), headers,
-                null, descHeaders, rdf, headers.getLastModifiedDate());
+                null, descHeaders, rdf, headers.getLastModifiedDate(), autoversioning);
     }
 
     private void migrateAcl(final String parentId, final String archivalGroupId,
@@ -287,9 +297,10 @@ public class ResourceMigrator {
                              final Path binaryDir,
                              final ResourceHeaders contentHeaders,
                              final InputStream content,
-                             final ResourceHeaders descHeaders,
-                             final Model rdf,
-                             final Instant timestamp) {
+                              final ResourceHeaders descHeaders,
+                              final Model rdf,
+                              final Instant timestamp,
+                              final boolean createVersion) {
         doInSession(getIdForSession(contentHeaders, fullId), session -> {
             final var isFirst = !session.containsResource(fullId);
             final String archivalGroupId = contentHeaders.getArchivalGroupId();
@@ -302,6 +313,7 @@ public class ResourceMigrator {
                 migrateAcl(fullId, archivalGroupId, binaryDir, session);
             }
 
+            session.commitType(createVersion ? CommitType.NEW_VERSION : CommitType.UNVERSIONED);
             session.commit();
         });
     }
@@ -319,9 +331,24 @@ public class ResourceMigrator {
         }
     }
 
-    private boolean containsResource(final String fullId) {
-        try (final var session = objectSessionFactory.newSession(fullId)) {
-            return session.containsResource(fullId);
+    private boolean containsResource(final ResourceInfo info) {
+        // For archival groups, need to check the AG id
+        final var sessionId = info.getArchivalGroupId() == null ? info.getFullId() : info.getArchivalGroupId();
+        try (final var session = objectSessionFactory.newSession(sessionId)) {
+            return session.containsResource(info.getFullId());
+        }
+    }
+
+    private void restoreArchivalGroupId(final ResourceInfo info) {
+        if (info.getArchivalGroupId() != null) {
+            return;
+        }
+
+        try (final var session = objectSessionFactory.newSession(info.getFullId())) {
+            final var headers = session.readHeaders(info.getFullId());
+            if (headers.isArchivalGroup()) {
+                info.setArchivalGroupId(info.getFullId());
+            }
         }
     }
 

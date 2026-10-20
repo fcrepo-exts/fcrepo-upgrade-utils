@@ -72,6 +72,7 @@ public class UpgradeUtilDriverTest {
                 "--migration-user-address", "info:user",
                 "--skip-acls",
                 "-ag", "http://example.com/AG",
+                "--autoversioning", "false",
                 "--write-to-s3",
                 "--s3-bucket", "bucket",
                 "--s3-prefix", "prefix",
@@ -94,6 +95,7 @@ public class UpgradeUtilDriverTest {
         assertEquals("info:user", config.getFedoraUserAddress());
         assertTrue(config.isSkipAcls());
         assertEquals("http://example.com/AG", config.getArchivalGroupRdfTypes());
+        assertFalse(config.isAutoversioning());
         assertTrue(config.isWriteToS3());
         assertEquals("bucket", config.getS3Bucket());
         assertEquals("prefix", config.getS3Prefix());
@@ -163,6 +165,11 @@ public class UpgradeUtilDriverTest {
     @Test
     public void testInvalidDigestAlgorithm() {
         assertExit(f6Args("-d", "md5"));
+    }
+
+    @Test
+    public void testInvalidAutoversioning() {
+        assertExit(f6Args("--autoversioning", "invalid"));
     }
 
     @Test
